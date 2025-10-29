@@ -10,7 +10,11 @@ export class OrganizationsService {
     private organizationsRepository: TreeRepository<Organization>,
   ) {}
 
-  async create(name: string, description?: string, parentId?: string): Promise<Organization> {
+  async create(
+    name: string,
+    description?: string,
+    parentId?: string,
+  ): Promise<Organization> {
     const organization = this.organizationsRepository.create({
       name,
       description,

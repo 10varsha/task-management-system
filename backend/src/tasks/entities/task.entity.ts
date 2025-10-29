@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  JoinColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 
@@ -57,21 +65,21 @@ export class Task {
   @Column({ default: 0 })
   order: number;
 
-  @ManyToOne(() => User, user => user.createdTasks)
+  @ManyToOne(() => User, (user) => user.createdTasks)
   @JoinColumn({ name: 'createdById' })
   createdBy: User;
 
   @Column()
   createdById: string;
 
-  @ManyToOne(() => User, user => user.assignedTasks, { nullable: true })
+  @ManyToOne(() => User, (user) => user.assignedTasks, { nullable: true })
   @JoinColumn({ name: 'assignedToId' })
   assignedTo: User;
 
   @Column({ nullable: true })
   assignedToId: string;
 
-  @ManyToOne(() => Organization, organization => organization.tasks)
+  @ManyToOne(() => Organization, (organization) => organization.tasks)
   @JoinColumn({ name: 'organizationId' })
   organization: Organization;
 

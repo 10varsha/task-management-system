@@ -1,24 +1,39 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 
 @Controller('tasks')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Post()
-  async create(@Body() createTaskDto: CreateTaskDto, @CurrentUser() user: User) {
+  async create(
+    @Body() createTaskDto: CreateTaskDto,
+    @CurrentUser() user: User,
+  ) {
+    console.log('=== CREATE TASK ENDPOINT HIT ===');
+    console.log('User:', user);
     return this.tasksService.create(createTaskDto, user);
   }
 
   @Get()
   async findAll(@CurrentUser() user: User) {
+    console.log('=== GET TASKS ENDPOINT HIT ===');
+    console.log('User:', user);
     return this.tasksService.findAll(user);
   }
 

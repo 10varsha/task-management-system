@@ -18,7 +18,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
-    
+
     // Role hierarchy: Owner > Admin > Viewer
     const roleHierarchy = {
       [Role.OWNER]: 3,
@@ -27,7 +27,9 @@ export class RolesGuard implements CanActivate {
     };
 
     const userRoleLevel = roleHierarchy[user.role];
-    const requiredRoleLevel = Math.min(...requiredRoles.map(role => roleHierarchy[role]));
+    const requiredRoleLevel = Math.min(
+      ...requiredRoles.map((role) => roleHierarchy[role]),
+    );
 
     return userRoleLevel >= requiredRoleLevel;
   }

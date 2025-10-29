@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+  JoinColumn,
+} from 'typeorm';
 import { Organization } from '../../organizations/entities/organization.entity';
 import { Task } from '../../tasks/entities/task.entity';
 import { Role } from '../../common/enums/role.enum';
@@ -29,17 +38,17 @@ export class User {
   })
   role: Role;
 
-  @ManyToOne(() => Organization, organization => organization.users)
+  @ManyToOne(() => Organization, (organization) => organization.users)
   @JoinColumn({ name: 'organizationId' })
   organization: Organization;
 
   @Column()
   organizationId: string;
 
-  @OneToMany(() => Task, task => task.assignedTo)
+  @OneToMany(() => Task, (task) => task.assignedTo)
   assignedTasks: Task[];
 
-  @OneToMany(() => Task, task => task.createdBy)
+  @OneToMany(() => Task, (task) => task.createdBy)
   createdTasks: Task[];
 
   @CreateDateColumn()

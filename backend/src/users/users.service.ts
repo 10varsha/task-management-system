@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -17,14 +21,27 @@ export class UsersService {
   }
 
   async findOne(id: string): Promise<User> {
-    const user = await this.usersRepository.findOne({
-      where: { id },
-      relations: ['organization'],
-    });
-    if (!user) {
-      throw new NotFoundException('User not found');
+    console.log('UsersService.findOne called with ID:', id); // Debug log
+
+    try {
+      const user = await this.usersRepository.findOne({
+        where: { id },
+        // Make organization relation optional
+        relations: ['organization'],
+      });
+
+      console.log('User query result:', user); // Debug log
+
+      if (!user) {
+        console.error('No user found with ID:', id); // Debug log
+        throw new NotFoundException(`User not found with ID: ${id}`);
+      }
+
+      return user;
+    } catch (error) {
+      console.error('Error in findOne:', error); // Debug log
+      throw error;
     }
-    return user;
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -34,8 +51,10 @@ export class UsersService {
     });
   }
 
-  async findByOrganization(organizationId: string, currentUser: User): Promise<User[]> {
-    // Only Owners and Admins can view users in their organization
+  async findByOrganization(
+    organizationId: string,
+    currentUser: User,
+  ): Promise<User[]> {
     if (currentUser.role === Role.VIEWER) {
       throw new ForbiddenException('Insufficient permissions');
     }
@@ -46,17 +65,21 @@ export class UsersService {
     });
   }
 
-  async updateRole(userId: string, newRole: Role, currentUser: User): Promise<User> {
-    // Only Owners can change roles
+  async updateRole(
+    userId: string,
+    newRole: Role,
+    currentUser: User,
+  ): Promise<User> {
     if (currentUser.role !== Role.OWNER) {
       throw new ForbiddenException('Only owners can change user roles');
     }
 
     const user = await this.findOne(userId);
-    
-    // Can't change role of users in different organization
+
     if (user.organizationId !== currentUser.organizationId) {
-      throw new ForbiddenException('Cannot modify users from other organizations');
+      throw new ForbiddenException(
+        'Cannot modify users from other organizations',
+      );
     }
 
     user.role = newRole;

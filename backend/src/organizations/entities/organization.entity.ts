@@ -1,4 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, TreeParent, TreeChildren, Tree, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  TreeParent,
+  TreeChildren,
+  Tree,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Task } from '../../tasks/entities/task.entity';
 
@@ -20,10 +30,10 @@ export class Organization {
   @TreeChildren()
   children: Organization[];
 
-  @OneToMany(() => User, user => user.organization)
+  @OneToMany(() => User, (user) => user.organization)
   users: User[];
 
-  @OneToMany(() => Task, task => task.organization)
+  @OneToMany(() => Task, (task) => task.organization)
   tasks: Task[];
 
   @CreateDateColumn()

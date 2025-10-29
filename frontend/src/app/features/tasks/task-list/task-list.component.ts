@@ -1,17 +1,21 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { CdkDragDrop, DragDropModule, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { TaskService } from '../../../core/services/task.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ThemeService } from '../../../core/services/theme.service';
+import { UserService } from '../../../core/services/user.service';
 import { NavbarComponent } from '../../../shared/components/navbar/navbar.component';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { Task, TaskStatus, TaskPriority, TaskCategory } from '../../../core/models/task.model';
 
+type ViewMode = 'grid' | 'kanban' | 'list';
+
 @Component({
   selector: 'app-task-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavbarComponent, LoadingSpinnerComponent],
+  imports: [CommonModule, FormsModule, DragDropModule, NavbarComponent, LoadingSpinnerComponent],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.css'
 })
@@ -21,7 +25,9 @@ export class TaskListComponent implements OnInit {
   TaskCategory = TaskCategory;
 
   showCreateModal = false;
+  showUserModal = false;
   editingTask: Task | null = null;
+  viewMode: ViewMode = 'grid';
   
   newTask = {
     title: '',
@@ -31,18 +37,24 @@ export class TaskListComponent implements OnInit {
     status: TaskStatus.TODO
   };
 
-  timeFilter: 'day' | 'week' | 'month' = 'day';
   filterStatus: TaskStatus | 'all' = 'all';
+  filterPriority: TaskPriority | 'all' = 'all';
+  filterCategory: TaskCategory | 'all' = 'all';
   searchQuery = '';
+  sortBy: 'date' | 'priority' | 'title' = 'date';
 
   constructor(
     public taskService: TaskService,
     public authService: AuthService,
-    public themeService: ThemeService
+    public themeService: ThemeService,
+    public userService: UserService
   ) {}
 
   ngOnInit(): void {
     this.loadTasks();
+    if (this.canManageUsers()) {
+      this.userService.getUsersInOrganization().subscribe();
+    }
   }
 
   loadTasks(): void {
@@ -58,6 +70,14 @@ export class TaskListComponent implements OnInit {
       tasks = tasks.filter(t => t.status === this.filterStatus);
     }
     
+    if (this.filterPriority !== 'all') {
+      tasks = tasks.filter(t => t.priority === this.filterPriority);
+    }
+    
+    if (this.filterCategory !== 'all') {
+      tasks = tasks.filter(t => t.category === this.filterCategory);
+    }
+    
     if (this.searchQuery) {
       tasks = tasks.filter(t => 
         t.title.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
@@ -65,15 +85,45 @@ export class TaskListComponent implements OnInit {
       );
     }
     
-    return tasks;
+    return this.sortTasks(tasks);
   }
 
-  getCurrentDate(): string {
-    return new Date().toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+  sortTasks(tasks: Task[]): Task[] {
+    return [...tasks].sort((a, b) => {
+      switch (this.sortBy) {
+        case 'priority':
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          return priorityOrder[b.priority] - priorityOrder[a.priority];
+        case 'title':
+          return a.title.localeCompare(b.title);
+        case 'date':
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
     });
+  }
+
+  getTasksByStatus(status: TaskStatus): Task[] {
+    return this.filteredTasks.filter(t => t.status === status);
+  }
+
+  // Drag and drop
+  drop(event: CdkDragDrop<Task[]>, newStatus?: TaskStatus): void {
+    if (event.previousContainer === event.container) {
+      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+    } else {
+      transferArrayItem(
+        event.previousContainer.data,
+        event.container.data,
+        event.previousIndex,
+        event.currentIndex,
+      );
+      
+      if (newStatus) {
+        const task = event.container.data[event.currentIndex];
+        this.taskService.updateTask(task.id, { status: newStatus }).subscribe();
+      }
+    }
   }
 
   openCreateModal(): void {
@@ -95,7 +145,14 @@ export class TaskListComponent implements OnInit {
   }
 
   createTask(): void {
-    if (!this.newTask.title.trim()) return;
+    if (!this.newTask.title || !this.newTask.title.trim()) {
+      alert('Please enter a task title');
+      return;
+    }
+
+    this.newTask.title = this.newTask.title.trim();
+
+    console.log('Creating task with data:', this.newTask); // Debug log
 
     if (this.editingTask) {
       this.taskService.updateTask(this.editingTask.id, this.newTask).subscribe({
@@ -103,7 +160,12 @@ export class TaskListComponent implements OnInit {
           this.showCreateModal = false;
           this.resetForm();
         },
-        error: (err) => console.error('Error updating task:', err)
+        error: (err) => {
+          console.error('Full error object:', err); // Detailed error
+          console.error('Error status:', err.status); // Status code
+          console.error('Error message:', err.error); // Backend error message
+          alert(`Failed to update task: ${err.error?.message || err.message || 'Unknown error'}`);
+        }
       });
     } else {
       this.taskService.createTask(this.newTask).subscribe({
@@ -111,12 +173,20 @@ export class TaskListComponent implements OnInit {
           this.showCreateModal = false;
           this.resetForm();
         },
-        error: (err) => console.error('Error creating task:', err)
+        error: (err) => {
+          console.error('Full error object:', err); // Detailed error
+          console.error('Error status:', err.status); // Status code
+          console.error('Error message:', err.error); // Backend error message
+          alert(`Failed to create task: ${err.error?.message || err.message || 'Unknown error'}`);
+        }
       });
     }
   }
 
-  deleteTask(task: Task): void {
+  deleteTask(task: Task, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
     if (confirm(`Delete "${task.title}"?`)) {
       this.taskService.deleteTask(task.id).subscribe({
         error: (err) => console.error('Error deleting task:', err)
@@ -124,8 +194,16 @@ export class TaskListComponent implements OnInit {
     }
   }
 
+  updateTaskStatus(task: Task, status: TaskStatus, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.taskService.updateTask(task.id, { status }).subscribe();
+  }
+
   closeModal(): void {
     this.showCreateModal = false;
+    this.showUserModal = false;
     this.resetForm();
   }
 
@@ -144,26 +222,49 @@ export class TaskListComponent implements OnInit {
     return this.authService.hasRole(['admin', 'owner']);
   }
 
-  getPriorityBadge(priority: TaskPriority): string {
-    const badges = {
-      [TaskPriority.LOW]: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
-      [TaskPriority.MEDIUM]: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
-      [TaskPriority.HIGH]: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
-    };
-    return badges[priority];
+  canManageUsers(): boolean {
+    return this.authService.hasRole(['owner', 'admin']);
   }
 
-  getStatusBadge(status: TaskStatus): string {
-    const badges = {
-      [TaskStatus.TODO]: 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-400',
-      [TaskStatus.IN_PROGRESS]: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400',
-      [TaskStatus.COMPLETED]: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400'
-    };
-    return badges[status];
+  clearFilters(): void {
+    this.filterStatus = 'all';
+    this.filterPriority = 'all';
+    this.filterCategory = 'all';
+    this.searchQuery = '';
   }
 
-  formatStatus(status: TaskStatus): string {
-    return status === TaskStatus.IN_PROGRESS ? 'In progress' : 
-           status === TaskStatus.TODO ? 'To do' : 'Done';
+  getPriorityColor(priority: TaskPriority): string {
+    const colors = {
+      [TaskPriority.HIGH]: 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/30',
+      [TaskPriority.MEDIUM]: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30',
+      [TaskPriority.LOW]: 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30'
+    };
+    return colors[priority];
+  }
+
+  getStatusColor(status: TaskStatus): string {
+    const colors = {
+      [TaskStatus.TODO]: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800',
+      [TaskStatus.IN_PROGRESS]: 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/30',
+      [TaskStatus.COMPLETED]: 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-950/30'
+    };
+    return colors[status];
+  }
+
+  getCompletionPercentage(): number {
+    const stats = this.taskService.getTaskStats();
+    return stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+  }
+
+  getTrendIndicator(current: number, previous: number): { icon: string; color: string; value: number } {
+    const diff = current - previous;
+    const percentage = previous > 0 ? Math.round((diff / previous) * 100) : 0;
+    
+    if (diff > 0) {
+      return { icon: '↑', color: 'text-green-600 dark:text-green-400', value: percentage };
+    } else if (diff < 0) {
+      return { icon: '↓', color: 'text-red-600 dark:text-red-400', value: Math.abs(percentage) };
+    }
+    return { icon: '→', color: 'text-gray-600 dark:text-gray-400', value: 0 };
   }
 }
